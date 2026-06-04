@@ -249,3 +249,52 @@ async def reject_listing(
     await session.commit()
     await session.refresh(listing)
     return listing.model_dump()
+
+
+class _ListingEditIn(BaseModel):
+    year: int | None = None
+    price: int | None = None
+    mileage: int | None = None
+    color_id: str | None = None
+    vin: str | None = None
+    description: str | None = None
+    condition: str | None = None
+
+
+@router.patch("/listings/{listing_id}", response_model=None, summary="Редактировать объявление (admin)")
+async def edit_listing_admin(
+    listing_id: uuid.UUID,
+    body: _ListingEditIn,
+    _: ModeratorUser,
+    session: SessionDep,
+) -> dict[str, Any]:
+    listing = await listing_crud.get(session, listing_id)
+    if listing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Listing not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(listing, field, value)
+    await session.commit()
+    await session.refresh(listing)
+    return listing.model_dump()
+
+
+@router.delete(
+    "/listings/{listing_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить объявление (admin)",
+)
+async def delete_listing_admin(
+    listing_id: uuid.UUID,
+    _: ModeratorUser,
+    session: SessionDep,
+) -> None:
+    listing = await listing_crud.get(session, listing_id)
+    if listing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Listing not found")
+    from app.models.listings import ListingImage, ViewingWindow, ViewingBooking
+    from sqlmodel import col, delete as sql_delete
+    await session.execute(sql_delete(ViewingBooking).where(col(ViewingBooking.listing_id) == listing_id))
+    await session.execute(sql_delete(ViewingWindow).where(col(ViewingWindow.listing_id) == listing_id))
+    await session.execute(sql_delete(ListingImage).where(col(ListingImage.listing_id) == listing_id))
+    await session.delete(listing)
+    await session.commit()

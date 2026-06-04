@@ -363,7 +363,13 @@ export const adminApi = {
     Promise.reject(new Error('Удаление авто недоступно через панель администратора')),
 
   deleteListing: (id: string): Promise<void> =>
-    req<void>(`/listings/${id}`, { method: 'DELETE' }),
+    req<void>(`/admin/listings/${id}`, { method: 'DELETE' }),
+
+  updateListing: (id: string, body: {
+    year?: number; price?: number; mileage?: number;
+    color_id?: string; vin?: string; description?: string; condition?: string;
+  }): Promise<Record<string, unknown>> =>
+    req<Record<string, unknown>>(`/admin/listings/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   getListingDetail: (id: string): Promise<Record<string, unknown>> =>
     req<Record<string, unknown>>(`/admin/listings/${id}`),

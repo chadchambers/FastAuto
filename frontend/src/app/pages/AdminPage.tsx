@@ -903,6 +903,26 @@ function CarsTab() {
     setFormColorId('');
     setExistingImages([]);
     clearFiles();
+    // Инициализируем каскад марок/моделей для режима редактирования
+    resetFormCascade();
+    if (car.mark_id) {
+      setFormMarkId(car.mark_id);
+      setFmLoading(true);
+      catalogApi.getModels(car.mark_id)
+        .then(models => {
+          setFormModels(models);
+          if (car.model_id) {
+            setFormModelId(car.model_id);
+            setFgLoading(true);
+            catalogApi.getGenerations(car.model_id)
+              .then(gens => { setFormGens(gens); })
+              .catch(() => {})
+              .finally(() => setFgLoading(false));
+          }
+        })
+        .catch(() => setFormModels([]))
+        .finally(() => setFmLoading(false));
+    }
     setShowForm(true);
     setEditLoading(true);
     try {
@@ -1032,8 +1052,29 @@ function CarsTab() {
         setSaving(false);
       }
     } else {
-      // Edit mode — not supported via new API
-      toast.error(A.carCreateEditError);
+      // Edit mode — admin patch endpoint
+      setSaving(true);
+      try {
+        await adminApi.updateListing(editCar.id, {
+          year: form.year ? Number(form.year) : undefined,
+          price: form.price ? Number(form.price) : undefined,
+          mileage: form.mileage ? Number(form.mileage) : undefined,
+          color_id: formColorId || undefined,
+          vin: form.vin.trim() || undefined,
+          description: form.description.trim() || undefined,
+        });
+        if (selectedFiles.length > 0) {
+          try { await listingsApi.uploadImages(editCar.id, selectedFiles); }
+          catch { toast.error(T.listing.photosErrorEdit); }
+        }
+        toast.success(A.carDeletedSuccess);
+        setShowForm(false);
+        handleReload();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : A.carDeleteError);
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -1316,17 +1357,37 @@ function CarsTab() {
               </div>
             )}
 
-            {/* Edit mode: plain text inputs for brand/model */}
+            {/* Edit mode: cascade dropdowns for brand/model */}
             {editCar && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1 text-muted-foreground">{A.carFormBrand}</label>
-                  <input type="text" required value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} className={inputCls} />
+                  <FormSearchSelect
+                    options={marks} value={formMarkId} onChange={onFormMarkChange}
+                    getLabel={(m) => m.name ?? m.cyrillic_name ?? m.id}
+                    placeholder={T.listing.chooseMark} searchPlaceholder={T.listing.searchPlaceholder}
+                    noResults={T.listing.noResults} loading={marks.length === 0 && marksLoading} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold mb-1 text-muted-foreground">{A.carFormModel}</label>
-                  <input type="text" required value={form.model} onChange={e => setForm(p => ({ ...p, model: e.target.value }))} className={inputCls} />
+                  <FormSearchSelect
+                    options={formModels} value={formModelId} onChange={onFormModelChange}
+                    getLabel={(m) => m.name ?? m.id}
+                    placeholder={formMarkId ? T.listing.chooseModel : T.listing.firstChooseMark}
+                    searchPlaceholder={T.listing.searchPlaceholder} noResults={T.listing.noResults}
+                    disabled={!formMarkId} loading={fmLoading} />
                 </div>
+                {formGens.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold mb-1 text-muted-foreground">{T.listing.generation}</label>
+                    <FormSearchSelect
+                      options={formGens} value={formGenId} onChange={onFormGenChange}
+                      getLabel={(g) => g.name ?? `${g.year_from ?? ''}–${g.year_to ?? '...'}`}
+                      placeholder={T.listing.chooseGeneration}
+                      searchPlaceholder={T.listing.searchPlaceholder} noResults={T.listing.noResults}
+                      loading={fgLoading} />
+                  </div>
+                )}
               </div>
             )}
 

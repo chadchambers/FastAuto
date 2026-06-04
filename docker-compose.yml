@@ -108,6 +108,34 @@ services:
       "
     <<: *common
 
+  # ── Ollama (LLM backend) ─────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    mem_limit: ${OLLAMA_MEM_LIMIT:-10g}
+    memswap_limit: ${OLLAMA_MEMSWAP_LIMIT:-10g}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    <<: *common
+
+  # Скачивает модель при первом запуске (re-run: no-op если уже скачана)
+  ollama-init:
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    restart: on-failure
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "${AI_MODEL_NAME:-qwen3.5:0.8b}"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    <<: *common
+
   # ── Backend (FastAPI + Granian) ───────────────────────────────────────────────
   backend:
     build:
@@ -122,6 +150,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     environment:
       ENVIRONMENT: production
       POSTGRES_SERVER: db
@@ -134,6 +164,7 @@ services:
       DB_POOL_SIZE: "5"
       DB_MAX_OVERFLOW: "5"
       REDIS_MAX_CONNECTIONS: "50"
+      AI_BACKEND: "docker"
     command: ["/app/scripts/start.sh"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
@@ -170,5 +201,6 @@ volumes:
   db_data:
   redis_data:
   minio_data:
+  ollama_data:
 networks:
   fastauto-network:

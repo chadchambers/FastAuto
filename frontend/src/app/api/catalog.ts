@@ -82,11 +82,18 @@ let _fetchingCities: Promise<GeoCity[]> | null = null;
 async function getAllCities(): Promise<GeoCity[]> {
   if (_allCitiesCache) return _allCitiesCache;
   if (_fetchingCities) return _fetchingCities;
-  _fetchingCities = api.get<GeoCity[]>('/geo/cities?all=true').then(cities => {
-    _allCitiesCache = cities;
-    _fetchingCities = null;
-    return cities;
-  });
+  // ?all=true returns { popular: GeoCity[], all: GeoCity[] } — extract the array
+  _fetchingCities = api.get<{ popular?: GeoCity[]; all?: GeoCity[] } | GeoCity[]>('/geo/cities?all=true')
+    .then(resp => {
+      const cities: GeoCity[] = Array.isArray(resp)
+        ? resp
+        : ((resp as { all?: GeoCity[]; popular?: GeoCity[] }).all
+            ?? (resp as { popular?: GeoCity[] }).popular
+            ?? []);
+      _allCitiesCache = cities;
+      _fetchingCities = null;
+      return cities;
+    });
   return _fetchingCities;
 }
 

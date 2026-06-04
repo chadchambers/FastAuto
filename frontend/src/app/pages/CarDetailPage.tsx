@@ -7,7 +7,7 @@ import { useCar } from '../hooks/useCars';
 import { useFavorites } from '../hooks/useFavorites';
 import { viewingsApi, type ViewingWindow } from '../api/viewings';
 import { reservationsApi } from '../api/reservations';
-import { resolveCityName } from '../api/catalog';
+import { resolveCityName, catalogApi } from '../api/catalog';
 import { useLanguage } from '../i18n/LanguageContext';
 
 function formatPrice(price: number): string {
@@ -74,6 +74,17 @@ export function CarDetailPage() {
     if (!car.city_id) return;
     resolveCityName(car.city_id).then(name => setCityName(name)).catch(() => {});
   }, [car]);
+
+  const [colorName, setColorName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!car?.color) return;
+    catalogApi.getColors()
+      .then(colors => {
+        const found = colors.find(c => c.id === car.color);
+        if (found) setColorName(found.name_ru);
+      })
+      .catch(() => {});
+  }, [car?.color]);
 
   useEffect(() => {
     if (!id) return;
@@ -192,7 +203,7 @@ export function CarDetailPage() {
     [T.carDetail.specs.mileage, formatMileage(car.mileage, lang)],
     ...(car.condition ? [[T.carDetail.specs.condition, CONDITION_LABELS[car.condition] ?? car.condition]] : []),
     ...(car.body_type ? [[T.carDetail.specs.body, BODY_LABELS[car.body_type] ?? car.body_type]] : []),
-    ...(car.color ? [[T.carDetail.specs.color, car.color]] : []),
+    ...((colorName ?? car.color) ? [[T.carDetail.specs.color, colorName ?? car.color!]] : []),
     ...(car.engine_volume ? [[T.carDetail.specs.engine, `${car.engine_volume} ${T.carDetail.liter}`]] : []),
     ...(car.engine_power ? [[T.carDetail.specs.power, `${car.engine_power} ${T.carCard.hp}`]] : []),
     ...(car.fuel_type ? [[T.carDetail.specs.fuel, FUEL_LABELS[car.fuel_type] ?? car.fuel_type]] : []),

@@ -17,7 +17,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 _JSON_RESPONSE = "application/json"
-_PUBLIC_CACHE_CONTROL = "public, max-age=3600, stale-while-revalidate=86400"
+_PUBLIC_CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=300"
 
 
 def _etag_of(content: bytes) -> str:
